@@ -5,6 +5,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+///////////////////////////////////////////
+// NETWORK CONFIGURATION //////////////////
 #define wifi_ssid "Gaik-home"
 #define wifi_password "fourwordsalluppercase"
 
@@ -12,17 +14,28 @@
 #define mqtt_user "owntracks"
 #define mqtt_password "Knyfelek"
 
-#define humidity_topic "sensor/humidity"
-#define temperature_topic "sensor/temperature"
-#define outside_temp_topic "sensor/outside"
+///////////////////////////////////////////
+// MQTT TOPICS DEFINITON //////////////////
 
-#define humidity_topic "sensor/humidity"
-#define temperature_topic "sensor/temperature"
+#define tKitchenHumidity "sensor/kitchenHumidity"
+#define tKitchenTempIn "sensor/kitchenTempIn"
+#define tKitchenTempOut "sensor/kitchenTempOut"
 
+///////////////////////////////////////////
+// HW CONFIG //////////////////////////////
 #define DHTTYPE DHT11
 #define DHTPIN 4
 #define ONE_WIRE_BUS 2
 
+///////////////////////////////////////////
+// OTHER DEFINITIONS
+#define minDiffTempDHT ????
+#define minDiffTempDS 0.5
+#define minDiffHumDHT ????
+
+
+///////////////////////////////////////////
+// INITIAL SETUP //////////////////////////
 WiFiClient espClient;
 PubSubClient client(espClient);
 DHT dht(DHTPIN, DHTTYPE, 15);
@@ -109,20 +122,20 @@ void loop() {
       temp = newTemp;
       Serial.print("New temperature:");
       Serial.println(String(temp).c_str());
-      client.publish(temperature_topic, String(temp).c_str(), true);
+      client.publish(tKitchenTempIn, String(temp).c_str(), true);
     }
 
     if (checkBound(newHum, hum, diff)) {
       hum = newHum;
       Serial.print("New humidity:");
       Serial.println(String(hum).c_str());
-      client.publish(humidity_topic, String(hum).c_str(), true);
+      client.publish(tKitchenHumidity, String(hum).c_str(), true);
     }
     if (checkBound(new_outtemp, outtemp, diff)) {
       outtemp = new_outtemp;
       Serial.print("Outside temperature:");
       Serial.println(outtemp);
-      client.publish(outside_temp_topic, String(outtemp).c_str(), true);
+      client.publish(tKitchenTempOut, String(outtemp).c_str(), true);
     }
   }
 }
