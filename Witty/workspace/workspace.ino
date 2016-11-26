@@ -1,9 +1,25 @@
+#include <OneWire.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
-#include <OneWire.h>
 #include <DallasTemperature.h>
+
+///////////////////////////////////////////
+/////// NODE CONFIGURATION /////////////////
+// uncomment correct define
+
+// LOCATION
+//#define KITCHEN
+//#define LIVING_ROOM
+#define WARDROBE
+
+// SENSOR TYPES
+//#define DHT_11
+#define DHT_22
+
+// END OF NODE CONFIGURATION //////////////
+
 
 ///////////////////////////////////////////
 // NETWORK CONFIGURATION //////////////////
@@ -14,34 +30,70 @@
 #define mqtt_user "owntracks"
 #define mqtt_password "Knyfelek"
 
+
 ///////////////////////////////////////////
 // MQTT TOPICS DEFINITON //////////////////
 
-#define tKitchenHumidity "sensor/kitchenHumidity"
-#define tKitchenTempIn "sensor/kitchenTempIn"
-#define tKitchenTempOut "sensor/kitchenTempOut"
+#if defined(KITCHEN)
+  #define tHumidity "sensor/kitchenHumidity"
+  #define tTempIn "sensor/kitchenTempIn"
+  #define tTempOut "sensor/kitchenTempOut"
+#elif defined(LIVING_ROOM)
+  #define tHumidity "sensor/livingroomHumidity"
+  #define tTempIn "sensor/livingroomTempIn"
+  #define tTempOut "sensor/livingroomTempOut"
+#elif defined(WARDROBE)
+  #define tHumidity "sensor/wardrobeHumidity"
+  #define tTempIn "sensor/wardrobeTempIn"
+  #define tTempOut "sensor/wardrobeTempOut"
+#endif
+
 
 ///////////////////////////////////////////
 // HW CONFIG //////////////////////////////
-#define DHTTYPE DHT11
-#define DHTPIN 4
-#define ONE_WIRE_BUS 2
+#if defined(DHT_11)
+  #define DHTTYPE DHT11
+#elif defined(DHT_22)
+  #define DHTTYPE DHT22
+#endif
+
+#define DHTPIN 2
+#define ONE_WIRE_BUS 4
 
 ///////////////////////////////////////////
 // OTHER DEFINITIONS
-#define minDiffTempDHT ????
-#define minDiffTempDS 0.5
-#define minDiffHumDHT ????
+#if defined(DHT_11)
+  #define minDiffTempDHT 1.0
+  #define minDiffHumDHT 4.0
+#elif defined(DHT_22)
+  #define minDiffTempDHT 0.2
+  #define minDiffHumDHT 1.5
+#endif
 
+#define minDiffTempDS 0.2
 
 ///////////////////////////////////////////
-// INITIAL SETUP //////////////////////////
+// FUNCTIONS DECLARATIONS ////////////////
+void setup_wifi();
+void reconnect();
+bool hasValueChanged(float, float, float);
+
+
+//////////////////////////////////////////
+// GLOBALS AND STARTING VALUES //////////
 WiFiClient espClient;
 PubSubClient client(espClient);
 DHT dht(DHTPIN, DHTTYPE, 15);
 OneWire onewire(ONE_WIRE_BUS);
 DallasTemperature sensors(&onewire);
 
+long lastMsg = 0;
+float inTemp = 0.0;
+float inHumidity = 0.0;
+float outTemp = 0.0;
+
+///////////////////////////////////////////
+// SYSTEM SETUP //////////////////////////
 void setup() {
   Serial.begin(115200);
   dht.begin();
@@ -50,6 +102,54 @@ void setup() {
   client.setServer(mqtt_server, 8883);
 }
 
+///////////////////////////////////////////
+// MAIN LOOP //////////////////////////
+void loop() {
+  Serial.println("hsdgfkjs");
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  long now = millis();
+  if (now - lastMsg > 2000) {
+    lastMsg = now;
+
+
+    float newTemp = dht.readTemperature();
+    float newHum = dht.readHumidity();
+    sensors.requestTemperatures();
+    delay(500);
+    float new_outtemp = sensors.getTempCByIndex(0);
+    
+    // read inside tempratature
+    if (hasValueChanged(newTemp, inTemp, minDiffTempDHT)) {
+      inTemp = newTemp;
+      Serial.print("New temperature:");
+      Serial.println(String(inTemp).c_str());
+      client.publish(tTempIn, String(inTemp).c_str(), true);
+    }
+
+    // read inside humidity
+    if (hasValueChanged(newHum, inHumidity, minDiffHumDHT)) {
+      inHumidity = newHum;
+      Serial.print("New humidity:");
+      Serial.println(String(inHumidity).c_str());
+      client.publish(tHumidity, String(inHumidity).c_str(), true);
+    }
+
+    // read outside temperature
+    if (hasValueChanged(new_outtemp, outTemp, minDiffTempDS)) {
+      outTemp = new_outtemp;
+      Serial.print("Outside temperature:");
+      Serial.println(outTemp);
+      client.publish(tTempOut, String(outTemp).c_str(), true);
+    }
+  }
+}
+
+/////////////////////////////////////
+// FUNCTIONS DEFINITIONS ////////////
 void setup_wifi() {
   delay(10);
   // We start by connecting to a WiFi network
@@ -90,52 +190,7 @@ void reconnect() {
   }
 }
 
-bool checkBound(float newValue, float prevValue, float maxDiff) {
+bool hasValueChanged(float newValue, float prevValue, float maxDiff) {
   return !isnan(newValue) &&
-         (newValue < prevValue - maxDiff || newValue > prevValue + maxDiff);
-}
-
-long lastMsg = 0;
-float temp = 0.0;
-float hum = 0.0;
-float diff = 1.0;
-float outtemp = 0.0;
-
-void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-
-  long now = millis();
-  if (now - lastMsg > 2000) {
-    lastMsg = now;
-
-
-    float newTemp = dht.readTemperature();
-    float newHum = dht.readHumidity();
-    sensors.requestTemperatures();
-    delay(500);
-    float new_outtemp = sensors.getTempCByIndex(0);
-    
-    if (checkBound(newTemp, temp, diff)) {
-      temp = newTemp;
-      Serial.print("New temperature:");
-      Serial.println(String(temp).c_str());
-      client.publish(tKitchenTempIn, String(temp).c_str(), true);
-    }
-
-    if (checkBound(newHum, hum, diff)) {
-      hum = newHum;
-      Serial.print("New humidity:");
-      Serial.println(String(hum).c_str());
-      client.publish(tKitchenHumidity, String(hum).c_str(), true);
-    }
-    if (checkBound(new_outtemp, outtemp, diff)) {
-      outtemp = new_outtemp;
-      Serial.print("Outside temperature:");
-      Serial.println(outtemp);
-      client.publish(tKitchenTempOut, String(outtemp).c_str(), true);
-    }
-  }
+    (newValue < prevValue - maxDiff || newValue > prevValue + maxDiff);
 }
