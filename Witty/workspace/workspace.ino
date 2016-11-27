@@ -11,8 +11,8 @@
 
 // LOCATION
 //#define KITCHEN
-//#define LIVING_ROOM
-#define WARDROBE
+#define LIVING_ROOM
+//#define WARDROBE
 
 // SENSOR TYPES
 //#define DHT_11
@@ -26,27 +26,29 @@
 #define wifi_ssid "Gaik-home"
 #define wifi_password "fourwordsalluppercase"
 
-#define mqtt_server "192.168.1.24"
-#define mqtt_user "owntracks"
-#define mqtt_password "Knyfelek"
-
 
 ///////////////////////////////////////////
-// MQTT TOPICS DEFINITON //////////////////
+// MQTT CONFIGURATION //////////////////
+#define mqtt_server "192.168.1.24"
 
 #if defined(KITCHEN)
+  #define nodeId "kitchen"
   #define tHumidity "sensor/kitchenHumidity"
   #define tTempIn "sensor/kitchenTempIn"
   #define tTempOut "sensor/kitchenTempOut"
 #elif defined(LIVING_ROOM)
+  #define nodeId "livingroom"
   #define tHumidity "sensor/livingroomHumidity"
   #define tTempIn "sensor/livingroomTempIn"
   #define tTempOut "sensor/livingroomTempOut"
 #elif defined(WARDROBE)
+  #define nodeId "wardrobe"
   #define tHumidity "sensor/wardrobeHumidity"
   #define tTempIn "sensor/wardrobeTempIn"
   #define tTempOut "sensor/wardrobeTempOut"
 #endif
+
+
 
 
 ///////////////////////////////////////////
@@ -99,13 +101,12 @@ void setup() {
   dht.begin();
   sensors.begin();
   setup_wifi();
-  client.setServer(mqtt_server, 8883);
+  client.setServer(mqtt_server, 1883);
 }
 
 ///////////////////////////////////////////
 // MAIN LOOP //////////////////////////
 void loop() {
-  Serial.println("hsdgfkjs");
   if (!client.connected()) {
     reconnect();
   }
@@ -175,9 +176,7 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    // If you do not want to use a username and password, change next line to
-    // if (client.connect("ESP8266Client")) {
-    if (client.connect("ESP8266Client", mqtt_user, mqtt_password)) {
+    if (client.connect(nodeId)) {
       Serial.println("connected");
     }
     else {
